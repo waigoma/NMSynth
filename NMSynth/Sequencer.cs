@@ -5,7 +5,7 @@ namespace NMSynth;
 public class Sequencer
 {
     private const int SampleRate = 44100;
-    private Synthesizer _synthesizer = new ("soundfont/Equinox_Grand_Pianos.sf2", SampleRate);
+    private readonly Synthesizer _synthesizer = new ("soundfont/Equinox_Grand_Pianos.sf2", SampleRate);
     
     public void Run()
     {
