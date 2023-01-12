@@ -11,27 +11,28 @@ public class WaveOutProcessor
         var bufferedWaveProvider = new BufferedWaveProvider(new WaveFormat(44100, 16, 2));
         
         // allow volume control
-        var wavProvider = new VolumeWaveProvider16(bufferedWaveProvider);
-        wavProvider.Volume = 0.1f;
+        var wavProvider = new VolumeWaveProvider16(bufferedWaveProvider)
+        {
+            Volume = 0.1f
+        };
         
         // create the output device
         var mmDevice = new MMDeviceEnumerator()
             .GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
 
         // listen outside wave
-        Task t = StartDummySoundSource(bufferedWaveProvider);
+        var t = StartDummySoundSource(bufferedWaveProvider);
+
+        using var wavPlayer = new WasapiOut(mmDevice, AudioClientShareMode.Shared, false, 200);
         
-        using (IWavePlayer wavPlayer = new WasapiOut(mmDevice, AudioClientShareMode.Shared, false, 200))
-        {
-            //出力に入力を接続して再生開始
-            wavPlayer.Init(wavProvider);
-            wavPlayer.Play();
+        //出力に入力を接続して再生開始
+        wavPlayer.Init(wavProvider);
+        wavPlayer.Play();
 
-            Console.WriteLine("Press ENTER to exit...");
-            Console.ReadLine();
+        Console.WriteLine("Press ENTER to exit...");
+        Console.ReadLine();
 
-            wavPlayer.Stop();
-        }
+        wavPlayer.Stop();
     }
 
     public async Task StartDummySoundSource(BufferedWaveProvider provider)
@@ -51,17 +52,17 @@ public class WaveOutProcessor
             return;
         }
 
-        byte[] data = File.ReadAllBytes(wavFilePath);
+        var data = File.ReadAllBytes(wavFilePath);
 
         //若干効率が悪いがヘッダのバイト数を確実に割り出して削る
-        using (var r = new WaveFileReader(wavFilePath))
+        await using (var r = new WaveFileReader(wavFilePath))
         {
-            int headerLength = (int)(data.Length - r.Length);
+            var headerLength = (int)(data.Length - r.Length);
             data = data.Skip(headerLength).ToArray();
         }
 
-        int bufsize = 16000;
-        for (int i = 0; i + bufsize < data.Length; i += bufsize)
+        var bufsize = 16000;
+        for (var i = 0; i + bufsize < data.Length; i += bufsize)
         {
             provider.AddSamples(data, i, bufsize);
             await Task.Delay(100);
