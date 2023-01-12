@@ -6,6 +6,8 @@ internal class Program
 {
     public static void Main(string[] args)
     {
+        var sequencer = new Sequencer();
+        sequencer.Run();
         Console.WriteLine("Hello World!");
     }
 }
