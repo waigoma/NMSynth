@@ -11,6 +11,7 @@
       <PackageReference Include="MeltySynth" Version="2.4.0" />
       <PackageReference Include="NAudio.Asio" Version="2.1.0" />
       <PackageReference Include="NAudio.Core" Version="2.1.0" />
+      <PackageReference Include="NAudio.Wasapi" Version="2.1.0" />
     </ItemGroup>
 
     <ItemGroup>
