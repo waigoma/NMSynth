@@ -21,7 +21,7 @@ public class WaveOutProcessor
             .GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
 
         // listen outside wave
-        var t = StartDummySoundSource(bufferedWaveProvider);
+        var _ = StartDummySoundSource(bufferedWaveProvider);
 
         using var wavPlayer = new WasapiOut(mmDevice, AudioClientShareMode.Shared, false, 200);
         
