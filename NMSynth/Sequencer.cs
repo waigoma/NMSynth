@@ -138,10 +138,10 @@ public class Sequencer
             _synthesizer.Render(_leftBuffer, _rightBuffer);
 
             // Convert to Stereo float array.
-            ConvertLRToStereo(_stereoBuffer, _leftBuffer, _rightBuffer, _settings.BufferSize);
+            Convert.LRToStereo(_stereoBuffer, _leftBuffer, _rightBuffer, _settings.BufferSize);
 
             // Convert to byte array.
-            ConvertFloatToPcmBytes(_pcmBuffer, _stereoBuffer, _stereoBuffer.Length);
+            Convert.FloatToPcmBytes(_pcmBuffer, _stereoBuffer, _stereoBuffer.Length);
 
             // Add to queue.
             var buffer = new byte[_pcmBuffer.Length];
@@ -157,45 +157,4 @@ public class Sequencer
     /// </summary>
     /// <returns>Calculated latency ms.</returns>
     private float CalculateLatency() => (float) _settings.BufferSize / _settings.SampleRate;
-    
-    // ReSharper disable once InconsistentNaming
-    /// <summary>
-    /// 左右のモノラルサンプルをステレオサンプルに変換する
-    /// </summary>
-    /// <param name="stereo">Stereo samples buffer.</param>
-    /// <param name="left">Left mono samples.</param>
-    /// <param name="right">Right mono samples.</param>
-    /// <param name="bufferSize">Buffer size.</param>
-    /// <returns>Stereo samples with left and right mixed.</returns>
-    private static void ConvertLRToStereo(IList<float> stereo, IReadOnlyList<float> left, IReadOnlyList<float> right, int bufferSize)
-    {
-        for (var i = 0; i < bufferSize; i++)
-        {
-            stereo[i * 2] = left[i];
-            stereo[i * 2 + 1] = right[i];
-        }
-    }
-    
-    /// <summary>
-    /// float のサンプルを byte の PCM サンプルに変換する
-    /// </summary>
-    /// <param name="pcm">PCM samples buffer.</param>
-    /// <param name="samples">Mono or stereo samples.</param>
-    /// <param name="samplesCount">Sample data length.</param>
-    /// <returns>PCM samples.</returns>
-    private static void ConvertFloatToPcmBytes(IList<byte> pcm, IReadOnlyList<float> samples, int samplesCount)
-    {
-        var sampleIndex = 0;
-        var pcmIndex = 0;
-
-        while (sampleIndex < samplesCount)
-        {
-            var outSample = (short)(samples[sampleIndex] * short.MaxValue);
-            pcm[pcmIndex] = (byte)(outSample & 0xff);
-            pcm[pcmIndex + 1] = (byte)((outSample >> 8) & 0xff);
-
-            sampleIndex++;
-            pcmIndex += 2;
-        }
-    }
 }
