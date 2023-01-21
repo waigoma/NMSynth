@@ -1,5 +1,8 @@
 ﻿namespace NMSynth;
 
+/// <summary>
+/// LR の float サンプルを変換するメソッド群
+/// </summary>
 public static class Convert
 {
     // ReSharper disable once InconsistentNaming
