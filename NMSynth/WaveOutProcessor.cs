@@ -13,15 +13,15 @@ public sealed class WaveOutProcessor
     /// </summary>
     public float Volume
     {
-        get => _floatProvider.Volume;
+        get => _volumeProvider.Volume;
         
-        set => _floatProvider.Volume = value;
+        set => _volumeProvider.Volume = value;
     }
 
     // バッファに書き込むためのプロバイダ
     private readonly BufferedWaveProvider _waveProvider;
     // 音量を調整するためのプロバイダ
-    private readonly VolumeWaveProvider16 _floatProvider;
+    private readonly VolumeWaveProvider16 _volumeProvider;
     // 音声出力ドライバ
     private readonly WasapiOut _wasapi;
 
@@ -38,7 +38,7 @@ public sealed class WaveOutProcessor
         var waveFormat =  new WaveFormat(sampleRate, channels);
         _waveProvider = new BufferedWaveProvider(waveFormat); 
         
-        _floatProvider = new VolumeWaveProvider16(_waveProvider);
+        _volumeProvider = new VolumeWaveProvider16(_waveProvider);
         _wasapi = new WasapiOut(device, AudioClientShareMode.Shared, false, 200);
         
         Volume = 0.5f;
@@ -62,7 +62,7 @@ public sealed class WaveOutProcessor
     /// </summary>
     public void Open()
     {
-        _wasapi.Init(_floatProvider);
+        _wasapi.Init(_volumeProvider);
         _wasapi.Play();
         _isOpen = true;
     }
