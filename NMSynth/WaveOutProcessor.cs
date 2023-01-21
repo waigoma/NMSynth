@@ -3,8 +3,70 @@ using NAudio.Wave;
 
 namespace NMSynth;
 
-public class WaveOutProcessor
+/// <summary>
+/// リアルタイムで音声を再生するためのクラス
+/// </summary>
+public sealed class WaveOutProcessor
 {
+    /// <summary>
+    /// 音声波形を実際に書き込む
+    /// </summary>
+    public BufferedWaveProvider WaveProvider { get; }
+    
+    /// <summary>
+    /// 音量
+    /// </summary>
+    public float Volume
+    {
+        get => _floatProvider.Volume;
+        
+        set => _floatProvider.Volume = value;
+    }
+
+    // 音量を調整するためのプロバイダ
+    private readonly VolumeWaveProvider16 _floatProvider;
+    // 音声出力ドライバ
+    private readonly WasapiOut _wasapi;
+    
+    /// <summary>
+    /// コンストラクタ
+    /// </summary>
+    /// <param name="sampleRate">サンプリングレート</param>
+    /// <param name="channels">チャンネル数</param>
+    /// <param name="device">出力に使うデバイス</param>
+    public WaveOutProcessor(int sampleRate, int channels, MMDevice device)
+    {
+        var waveFormat =  new WaveFormat(sampleRate, channels);
+        WaveProvider = new BufferedWaveProvider(waveFormat); 
+        
+        _floatProvider = new VolumeWaveProvider16(WaveProvider);
+        _wasapi = new WasapiOut(device, AudioClientShareMode.Shared, false, 200);
+        
+        Volume = 0.5f;
+    }
+
+    public void Write(byte[] data)
+    {
+        WaveProvider.AddSamples(data, 0, data.Length);
+    }
+    
+    /// <summary>
+    /// 音声の再生モードをオンにする
+    /// </summary>
+    public void Open()
+    {
+        _wasapi.Init(_floatProvider);
+        _wasapi.Play();
+    }
+    
+    /// <summary>
+    /// 音声の再生モードをオフにする
+    /// </summary>
+    public void Close()
+    {
+        _wasapi.Stop();
+    }
+    
     public void Run()
     {
         // 44.1kHz, 16-bit, Stereo
@@ -34,8 +96,8 @@ public class WaveOutProcessor
 
         wavPlayer.Stop();
     }
-
-    public async Task StartDummySoundSource(BufferedWaveProvider provider)
+    
+    private static async Task StartDummySoundSource(BufferedWaveProvider provider)
     {
         //外部入力のダミーとして適当な音声データを用意して使う
         var wavFilePath = Path.Combine(

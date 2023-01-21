@@ -14,8 +14,4 @@
       <PackageReference Include="NAudio.Wasapi" Version="2.1.0" />
     </ItemGroup>
 
-    <ItemGroup>
-      <Folder Include="soundfont" />
-    </ItemGroup>
-
 </Project>
