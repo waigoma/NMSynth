@@ -9,11 +9,6 @@ namespace NMSynth;
 public sealed class WaveOutProcessor
 {
     /// <summary>
-    /// 音声波形を実際に書き込む
-    /// </summary>
-    public BufferedWaveProvider WaveProvider { get; }
-    
-    /// <summary>
     /// 音量
     /// </summary>
     public float Volume
@@ -23,10 +18,14 @@ public sealed class WaveOutProcessor
         set => _floatProvider.Volume = value;
     }
 
+    // バッファに書き込むためのプロバイダ
+    private readonly BufferedWaveProvider _waveProvider;
     // 音量を調整するためのプロバイダ
     private readonly VolumeWaveProvider16 _floatProvider;
     // 音声出力ドライバ
     private readonly WasapiOut _wasapi;
+
+    private bool _isOpen;
     
     /// <summary>
     /// コンストラクタ
@@ -37,17 +36,25 @@ public sealed class WaveOutProcessor
     public WaveOutProcessor(int sampleRate, int channels, MMDevice device)
     {
         var waveFormat =  new WaveFormat(sampleRate, channels);
-        WaveProvider = new BufferedWaveProvider(waveFormat); 
+        _waveProvider = new BufferedWaveProvider(waveFormat); 
         
-        _floatProvider = new VolumeWaveProvider16(WaveProvider);
+        _floatProvider = new VolumeWaveProvider16(_waveProvider);
         _wasapi = new WasapiOut(device, AudioClientShareMode.Shared, false, 200);
         
         Volume = 0.5f;
     }
 
+    /// <summary>
+    /// バッファにサンプルを書き込む
+    /// </summary>
+    /// <param name="data">PCM byte array.</param>
+    /// <exception cref="IOException">Output device not open.</exception>
     public void Write(byte[] data)
     {
-        WaveProvider.AddSamples(data, 0, data.Length);
+        if (!_isOpen)
+            throw new IOException("Output device is not open.");
+        
+        _waveProvider.AddSamples(data, 0, data.Length);
     }
     
     /// <summary>
@@ -57,6 +64,7 @@ public sealed class WaveOutProcessor
     {
         _wasapi.Init(_floatProvider);
         _wasapi.Play();
+        _isOpen = true;
     }
     
     /// <summary>
@@ -65,69 +73,6 @@ public sealed class WaveOutProcessor
     public void Close()
     {
         _wasapi.Stop();
-    }
-    
-    public void Run()
-    {
-        // 44.1kHz, 16-bit, Stereo
-        var bufferedWaveProvider = new BufferedWaveProvider(new WaveFormat(44100, 16, 2));
-        
-        // allow volume control
-        var wavProvider = new VolumeWaveProvider16(bufferedWaveProvider)
-        {
-            Volume = 0.1f
-        };
-        
-        // create the output device
-        var mmDevice = new MMDeviceEnumerator()
-            .GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-
-        // listen outside wave
-        var t = StartDummySoundSource(bufferedWaveProvider);
-
-        using var wavPlayer = new WasapiOut(mmDevice, AudioClientShareMode.Shared, false, 200);
-        
-        //出力に入力を接続して再生開始
-        wavPlayer.Init(wavProvider);
-        wavPlayer.Play();
-
-        Console.WriteLine("Press ENTER to exit...");
-        Console.ReadLine();
-
-        wavPlayer.Stop();
-    }
-    
-    private static async Task StartDummySoundSource(BufferedWaveProvider provider)
-    {
-        //外部入力のダミーとして適当な音声データを用意して使う
-        var wavFilePath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
-            "sample.wav"
-        );
-
-        if (!File.Exists(wavFilePath))
-        {
-            Console.WriteLine("Target sound files were not found. Wav file or MP3 file is needed for this program.");
-            Console.WriteLine($"expected wav file: {wavFilePath}");
-            Console.WriteLine($"expected mp3 file: {wavFilePath}");
-            Console.WriteLine("(note: ONE file is enough, two files is not needed)");
-            return;
-        }
-
-        var data = File.ReadAllBytes(wavFilePath);
-
-        //若干効率が悪いがヘッダのバイト数を確実に割り出して削る
-        await using (var r = new WaveFileReader(wavFilePath))
-        {
-            var headerLength = (int)(data.Length - r.Length);
-            data = data.Skip(headerLength).ToArray();
-        }
-
-        var bufsize = 16000;
-        for (var i = 0; i + bufsize < data.Length; i += bufsize)
-        {
-            provider.AddSamples(data, i, bufsize);
-            await Task.Delay(100);
-        }
+        _isOpen = false;
     }
 }
