@@ -30,12 +30,11 @@ public sealed class WaveOutProcessor
     /// <summary>
     /// コンストラクタ
     /// </summary>
-    /// <param name="sampleRate">サンプリングレート</param>
-    /// <param name="channels">チャンネル数</param>
+    /// <param name="settings">設定</param>
     /// <param name="device">出力に使うデバイス</param>
-    public WaveOutProcessor(int sampleRate, int channels, MMDevice device)
+    public WaveOutProcessor(Settings settings, MMDevice device)
     {
-        var waveFormat =  new WaveFormat(sampleRate, channels);
+        var waveFormat =  new WaveFormat(settings.SampleRate, settings.Channels);
         _waveProvider = new BufferedWaveProvider(waveFormat); 
         
         _volumeProvider = new VolumeWaveProvider16(_waveProvider);

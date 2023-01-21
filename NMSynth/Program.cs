@@ -1,25 +1,23 @@
-﻿// See https://aka.ms/new-console-template for more information
-
-using NAudio.CoreAudioApi;
+﻿using NAudio.CoreAudioApi;
 
 namespace NMSynth;
 
 internal static class Program
 {
-    private const int SampleRate = 44100;
+    private static readonly Settings Settings = new (44100, 2, 1024, 1);
     
     public static void Main(string[] args)
     {
         // 出力デバイス開放
         var device = new MMDeviceEnumerator().GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-        var wop = new WaveOutProcessor(SampleRate, 2, device);
+        var wop = new WaveOutProcessor(Settings, device);
         wop.Open();
         
         // シンセサイザ準備
-        var synth = new Synth(SampleRate, "../../../soundfont/TimGM6mb-MuseScore.sf2");
+        var synth = new Synth(Settings.SampleRate, "../../../soundfont/TimGM6mb-MuseScore.sf2");
         
         // シーケンサ起動
-        var sequencer = new Sequencer(SampleRate, synth.GetSynthesizer(), wop);
+        var sequencer = new Sequencer(Settings, synth.GetSynthesizer(), wop);
         sequencer.Open();
         
         // 無限ループ、ESC で終了。

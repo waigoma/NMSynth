@@ -1,84 +1,162 @@
-﻿using MeltySynth;
+﻿using System.Diagnostics;
+using MeltySynth;
 
 namespace NMSynth;
 
+/// <summary>
+/// リアルタイム再生を実現させるためのシーケンサ
+/// <br/>
+/// バッファサイズとサンプリングレートからバッファの再生時間を求め、
+/// その時間ごとにずらしてバッファを書き出す。
+/// </summary>
 public class Sequencer
 {
+    /// <summary>
+    /// シーケンサが起動しているかどうか
+    /// </summary>
+    public bool IsOpen { get; private set; }
+    
+    // 音の生成と再生に必要なもの
     private readonly WaveOutProcessor _waveOutProcessor;
     private readonly Synthesizer _synthesizer;
-    private readonly int _sampleRate;
+    private readonly Settings _settings;
     
-    private bool _isOpen;
-    private Task? _realtimeTask;
+    // バッファ
+    private readonly Queue<byte[]> _bufferQueue = new ();
+    private readonly float[] _leftBuffer;
+    private readonly float[] _rightBuffer;
+    private readonly float[] _stereoBuffer;
+    private readonly byte[] _pcmBuffer;
     
-    public Sequencer(int sampleRate, Synthesizer synthesizer, WaveOutProcessor waveOutProcessor)
+    // 他スレッド
+    private Task? _sequenceTask;
+    private Task? _enqueueTask;
+
+    /// <summary>
+    /// コンストラクタ
+    /// </summary>
+    /// <param name="settings">設定</param>
+    /// <param name="synthesizer">音を生成するシンセサイザ</param>
+    /// <param name="waveOutProcessor">音を出力する先</param>
+    public Sequencer(Settings settings, Synthesizer synthesizer, WaveOutProcessor waveOutProcessor)
     {
         _waveOutProcessor = waveOutProcessor;
         _synthesizer = synthesizer;
-        _sampleRate = sampleRate;
+        _settings = settings;
+        
+        // Initialize buffers
+        _leftBuffer = new float[settings.BufferSize];
+        _rightBuffer = new float[settings.BufferSize];
+        _stereoBuffer = new float[_leftBuffer.Length + _rightBuffer.Length];
+        _pcmBuffer = new byte[_stereoBuffer.Length * 2];
     }
 
+    /// <summary>
+    /// シーケンサを起動する
+    /// </summary>
     public void Open()
     {
-        _isOpen = true;
-        _realtimeTask = RealtimeSound();
+        IsOpen = true;
+        _enqueueTask = Task.Run(EnqueueSampleAsync);
+        _sequenceTask = Task.Run(SequenceAsync);
     }
 
+    /// <summary>
+    /// シーケンサを停止する
+    /// </summary>
     public void Close()
     {
-        _isOpen = false;
-        _realtimeTask?.Wait();
-        _realtimeTask?.Dispose();
+        IsOpen = false;
+        _enqueueTask?.Wait();
+        _sequenceTask?.Wait();
     }
 
-    private async Task RealtimeSound()
+    /// <summary>
+    /// シーケンサ本体
+    /// <br/>
+    /// stopwatch でレイテンシを計算する。
+    /// </summary>
+    private async Task SequenceAsync()
     {
-        // The length of a block is 0.001 sec.
-        // var blockSize = _sampleRate / 1000;
-
-        // The entire output is 10 ms.
-        // var blockCount = 10;
-
-        var bufferSize = 1024;
-
-        // The output buffer.
-        // var left = new float[blockSize * blockCount];
-        // var right = new float[blockSize * blockCount];
-        var left = new float[bufferSize];
-        var right = new float[bufferSize];
-        var stereo = new float[left.Length + right.Length];
-        var pcm = new byte[stereo.Length * 2];
+        var stopwatch = new Stopwatch();
         
-        // Sequencer loop.
-        while (_isOpen)
+        // latency seconds
+        var latencySec = CalculateLatency();
+        // latency nano seconds
+        var latencyNs = (long)(latencySec * 1_000_000_000);
+        
+        // start time
+        stopwatch.Start();
+        var start = stopwatch.ElapsedTicks * 100;
+        
+        while (IsOpen)
         {
-            // Render the next block.
-            _synthesizer.Render(left, right);
-            
-            // Convert to Stereo float array.
-            ConvertLRToStereo(stereo, left, right, bufferSize);
-            
-            // Convert to byte array.
-            ConvertFloatToPcmBytes(pcm, stereo, stereo.Length);
+            // if the elapsed time is less than the latency, wait
+            if (stopwatch.ElapsedTicks * 100 - start < latencyNs)
+                continue;
+
+            // reset start time
+            stopwatch.Restart();
+            start = stopwatch.ElapsedTicks;
             
             // Write to WaveOut.
-            if (IsPcmExists(pcm))
-                _waveOutProcessor.Write(pcm);
-            
-            await Task.Delay(1);
+            if (_bufferQueue.TryDequeue(out var buffer))
+                _waveOutProcessor.Write(buffer);
         }
+        
+        stopwatch.Stop();
+        await Task.CompletedTask;
+    }
+    
+    /// <summary>
+    /// バッファキューに設定分のサンプルを追加する
+    /// </summary>
+    private async Task EnqueueSampleAsync()
+    {
+        while (IsOpen)
+        {
+            // if the buffer queue is full, wait
+            if (_bufferQueue.Count >= _settings.BufferQueueSize)
+                continue;
+            
+            // Add samples to the buffer queue.
+            await EnqueueSampleToQueue();
+        }
+    }
+    
+    /// <summary>
+    /// キューに追加するデータを作成する
+    /// </summary>
+    private async Task EnqueueSampleToQueue()
+    {
+        lock (_leftBuffer)
+        lock (_rightBuffer)
+        lock (_stereoBuffer)
+        lock (_pcmBuffer)
+        {
+            // Render the next block.
+            _synthesizer.Render(_leftBuffer, _rightBuffer);
+
+            // Convert to Stereo float array.
+            ConvertLRToStereo(_stereoBuffer, _leftBuffer, _rightBuffer, _settings.BufferSize);
+
+            // Convert to byte array.
+            ConvertFloatToPcmBytes(_pcmBuffer, _stereoBuffer, _stereoBuffer.Length);
+
+            // Add to queue.
+            var buffer = new byte[_pcmBuffer.Length];
+            Array.Copy(_pcmBuffer, buffer, _pcmBuffer.Length);
+            _bufferQueue.Enqueue(buffer);
+        }
+        
+        await Task.CompletedTask;
     }
     
     /// <summary>
     /// レイテンシを計算する。
     /// </summary>
-    /// <param name="sampleRate">Sampling rate.</param>
-    /// <param name="bufferSize">Buffer size.</param>
-    /// <returns>Calculate latency ms.</returns>
-    private static float CalculateLatency(int sampleRate, int bufferSize)
-    {
-        return (float) bufferSize / sampleRate;
-    }
+    /// <returns>Calculated latency ms.</returns>
+    private float CalculateLatency() => (float) _settings.BufferSize / _settings.SampleRate;
     
     // ReSharper disable once InconsistentNaming
     /// <summary>
@@ -119,10 +197,5 @@ public class Sequencer
             sampleIndex++;
             pcmIndex += 2;
         }
-    }
-    
-    private static bool IsPcmExists(IEnumerable<byte> pcm)
-    {
-        return pcm.Any(x => x != 0);
     }
 }
