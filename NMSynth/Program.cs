@@ -15,8 +15,11 @@ internal static class Program
         var wop = new WaveOutProcessor(SampleRate, 2, device);
         wop.Open();
         
+        // シンセサイザ準備
+        var synth = new Synth(SampleRate, "../../../soundfont/TimGM6mb-MuseScore.sf2");
+        
         // シーケンサ起動
-        var sequencer = new Sequencer(SampleRate, "../../../soundfont/TimGM6mb-MuseScore.sf2", wop);
+        var sequencer = new Sequencer(SampleRate, synth.GetSynthesizer(), wop);
         sequencer.Open();
         
         // 無限ループ、ESC で終了。
@@ -33,10 +36,10 @@ internal static class Program
                     sequencer.Close();
                     return;
                 case ConsoleKey.A:
-                    sequencer.NoteOn();
+                    synth.NoteOn();
                     break;
                 case ConsoleKey.D:
-                    sequencer.NoteOff();
+                    synth.NoteOff();
                     break;
             }
         }

@@ -39,7 +39,7 @@ public sealed class WaveOutProcessor
         _waveProvider = new BufferedWaveProvider(waveFormat); 
         
         _volumeProvider = new VolumeWaveProvider16(_waveProvider);
-        _wasapi = new WasapiOut(device, AudioClientShareMode.Shared, false, 200);
+        _wasapi = new WasapiOut(device, AudioClientShareMode.Shared, false, 0);
         
         Volume = 0.5f;
     }

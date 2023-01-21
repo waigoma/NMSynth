@@ -11,23 +11,13 @@ public class Sequencer
     private bool _isOpen;
     private Task? _realtimeTask;
     
-    public Sequencer(int sampleRate, string soundFontPath, WaveOutProcessor waveOutProcessor)
+    public Sequencer(int sampleRate, Synthesizer synthesizer, WaveOutProcessor waveOutProcessor)
     {
         _waveOutProcessor = waveOutProcessor;
-        _synthesizer = new Synthesizer(soundFontPath, sampleRate);
+        _synthesizer = synthesizer;
         _sampleRate = sampleRate;
     }
 
-    public void NoteOn()
-    {
-        _synthesizer.NoteOn(0, 60, 127);
-    }
-    
-    public void NoteOff()
-    {
-        _synthesizer.NoteOff(0, 60);
-    }
-    
     public void Open()
     {
         _isOpen = true;
@@ -72,9 +62,10 @@ public class Sequencer
             ConvertFloatToPcmBytes(pcm, stereo, stereo.Length);
             
             // Write to WaveOut.
-            _waveOutProcessor.Write(pcm);
+            if (IsPcmExists(pcm))
+                _waveOutProcessor.Write(pcm);
             
-            await Task.Delay((int) (CalculateLatency(_sampleRate, bufferSize) * 1000));
+            await Task.Delay(1);
         }
     }
     
@@ -128,5 +119,10 @@ public class Sequencer
             sampleIndex++;
             pcmIndex += 2;
         }
+    }
+    
+    private static bool IsPcmExists(IEnumerable<byte> pcm)
+    {
+        return pcm.Any(x => x != 0);
     }
 }
