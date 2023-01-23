@@ -20,7 +20,7 @@ internal static class Program
         var sequencer = new Sequencer(Settings, synth.GetSynthesizer(), wop);
         sequencer.Open();
         
-        // 無限ループ、ESC で終了。
+        // 無限ループ、Space で終了。
         // A で ドを 127 で鳴らす。D is off。 
         while (true)
         {
